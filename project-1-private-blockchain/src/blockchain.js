@@ -62,30 +62,36 @@ class Blockchain {
      * Note: the symbol `_` in the method name indicates in the javascript convention 
      * that this method is a private method. 
      */
-    _addBlock(block) {
-        return new Promise(async (resolve, reject) => {
-            // Obtain chain length 
-            let height = this.chain.length;
-            block.height = height;
-            // Obtain block time
-            block.time = new Date().getTime().toString().slice(0,-3);
-            // If chain exists, take previous block's hash
-            block.previousBlockHash = (height > 0) ? this.chain[height - 1].hash : null;
-            // Hash block 
-            block.hash = await SHA256(JSON.stringify(block)).toString();
-            // Check that block is valid
-            const validBlock = block.hash && (block.height === this.chain.length) && block.time;
-            // Resolve promise
-            validBlock ? resolve(block) : reject(new Error("Invalid Block"));
-        })
-        .then(block => {
-            // Push block to chain
-            this.chain.push(block);
-            // Update chain length (Blockchain length is always chain length - 1)
-            this.height = this.chain.length - 1;
-            return block;
-        })
-        .catch(error => console.log("[ERROR]", error));
+    async _addBlock(block) {
+        // Validating the chain prior to block addition        
+        let errorLog = await this.validateChain();
+        if(errorLog.length === 0){
+            return new Promise(async (resolve, reject) => {
+                // Obtain chain length 
+                let height = this.chain.length;
+                block.height = height;
+                // Obtain block time
+                block.time = new Date().getTime().toString().slice(0,-3);
+                // If chain exists, take previous block's hash
+                block.previousBlockHash = (height > 0) ? this.chain[height - 1].hash : null;
+                // Hash block 
+                block.hash = await SHA256(JSON.stringify(block)).toString();
+                // Check that block is valid
+                const validBlock = block.hash && (block.height === this.chain.length) && block.time;
+                // Resolve promise
+                validBlock ? resolve(block) : reject(new Error("Invalid Block"));
+            })
+            .then(block => {
+                // Push block to chain
+                this.chain.push(block);
+                // Update chain length (Blockchain length is always chain length - 1)
+                this.height = this.chain.length - 1;
+                return block;
+            })
+            .catch(error => console.log("[ERROR]", error));
+        } else {
+            console.log("Invalid Chain");
+        }
     }
 
     /**
@@ -121,8 +127,6 @@ class Blockchain {
      * @param {*} star 
      */
     submitStar(address, message, signature, star) {
-        // Validating the chain prior to block addition
-        this.validateChain().then(error => typeof error === 'string' ? console.log("Chain is OK") : console.log("Error: ", error));
         return new Promise(async (resolve, reject) => {
             // Get time from message
             let messageTime = parseInt(message.split(':')[1]);
@@ -202,18 +206,20 @@ class Blockchain {
     validateChain() {
         let errorLog = [];
         return new Promise(async (resolve, reject) => {
+            if(this.chain.length === 0) resolve(errorLog); 
             for (let block of this.chain) {
                 if (block.validate()) {
                     if (block.height > 0) {
                         if(block.previousBlockHash !== this.chain[block.height - 1].hash) {
-                            errorLog.push(new Error("Invalid link between " + block.height + "and " + this.chain[block.height - 1].height));
+                            errorLog.push(new Error("Invalid link between " + block.height + " and " + this.chain[block.height - 1].height));
                         }
                     }
                 } else {
                     errorLog.push(new Error("Invalid block: " + block.height + ", " + block.hash));
                 }
             }
-            errorLog.length > 0 ? resolve(errorLog) : resolve("No errors found")
+            // errorLog.length > 0 ? resolve(errorLog) : resolve("No errors found")
+            resolve(errorLog);
         });
     }
 
