@@ -122,7 +122,8 @@ class Blockchain {
      * @param {*} star 
      */
     submitStar(address, message, signature, star) {
-        let self = this;
+        // Validating the chain prior to block addition
+        this.validateChain().then(error => typeof error === 'string' ? console.log("Chain is OK") : console.log("Error: ", error));
         return new Promise(async (resolve, reject) => {
             // Get time from message
             let messageTime = parseInt(message.split(':')[1]);
