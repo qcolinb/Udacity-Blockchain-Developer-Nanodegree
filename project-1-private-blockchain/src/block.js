@@ -36,12 +36,11 @@ class Block {
      *  Note: to access the class values inside a Promise code you need to create an auxiliary value `let self = this;`
      */
     validate() {
-        let self = this;
         return new Promise((resolve, reject) => {
             // Save in auxiliary variable the current block hash
-            let auxHash = self.hash;
+            let auxHash = this.hash;
             // Recalculate the hash of the Block
-            const blockHash = SHA256(JSON.stringify({ ...self, hash: null })).toString();
+            const blockHash = SHA256(JSON.stringify({ ...this, hash: null })).toString();
             // Comparing if the hashes changed
             if (auxHash != blockHash) {
                 console.log("Block has been tampered with: " + auxHash + " <> " + blockHash)
@@ -63,16 +62,15 @@ class Block {
      *     or Reject with an error.
      */
     getBData() {
-        let self = this;
         return new Promise((resolve, reject) => {
             // Getting the encoded data saved in the Block
-            const encodedData = self.body;
+            const encodedData = this.body;
             // Decoding the data to retrieve the JSON representation of the object
             const decodedData = hex2ascii(encodedData);
             // Parse the data to an object to be retrieved
             const decodedObject = JSON.parse(decodedData);
             // Resolve with the data if the object isn't the Genesis block
-            self.height > 0 ? resolve(decodedObject) : reject(new Error("Genesis Block"));            
+            this.height > 0 ? resolve(decodedObject) : reject(new Error("Genesis Block"));            
         })
     }
 }
