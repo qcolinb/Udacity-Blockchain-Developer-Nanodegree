@@ -11,6 +11,7 @@
 const SHA256 = require('crypto-js/sha256');
 const BlockClass = require('./block.js');
 const bitcoinMessage = require('bitcoinjs-message');
+const hex2ascii = require('hex2ascii');
 
 class Blockchain {
 
@@ -64,8 +65,28 @@ class Blockchain {
     _addBlock(block) {
         let self = this;
         return new Promise(async (resolve, reject) => {
-           
-        });
+            // Obtain chain length 
+            let height = self.chain.length;
+            block.height = height;
+            // Obtain block time
+            block.time = new Date().getTime().toString().slice(0,-3);
+            // If chain exists, take previous block's hash
+            block.previousBlockHash = (height > 0) ? self.chain[height - 1].hash : null;
+            // Hash block 
+            block.hash = await SHA256(JSON.stringify(block)).toString();
+            // Check that block is valid
+            const validBlock = block.hash && (block.height === self.chain.length) && block.time;
+            // Resolve promise
+            validBlock ? resolve(block) : reject(new Error("Invalid Block"));
+        })
+        .then(block => {
+            // Push block to chain
+            this.chain.push(block);
+            // Update chain length (Blockchain length is always chain length - 1)
+            this.height = this.chain.length - 1;
+            return block;
+        })
+        .catch(error => console.log("[ERROR]", error));
     }
 
     /**
@@ -77,8 +98,9 @@ class Blockchain {
      * @param {*} address 
      */
     requestMessageOwnershipVerification(address) {
+        let self = this;
         return new Promise((resolve) => {
-            
+            resolve(`${address}:${new Date().getTime().toString().slice(0,-3)}:starRegistry`);           
         });
     }
 
@@ -102,7 +124,21 @@ class Blockchain {
     submitStar(address, message, signature, star) {
         let self = this;
         return new Promise(async (resolve, reject) => {
-            
+            // Get time from message
+            let messageTime = parseInt(message.split(':')[1]);
+            // Get current time
+            let currentTime = parseInt(new Date().getTime().toString().slice(0,-3));
+            // Check that message has been signed within the last 5 minutes
+            if((currentTime - messageTime) >= (5 * 60)) reject(new Error("Request timed out"));
+            // Verify block using library
+            if (!bitcoinMessage.verify(message, address, signature)) reject(new Error("Failed Verification"));
+            // Create new block
+            let block = new BlockClass.Block(star);
+            // Add the owner to the block 
+            block.owner = address;
+            // Add the block to the chain
+            block = await self._addBlock(block);
+            resolve(block);
         });
     }
 
@@ -115,7 +151,9 @@ class Blockchain {
     getBlockByHash(hash) {
         let self = this;
         return new Promise((resolve, reject) => {
-           
+            for (i=0; i<self.chain.length; i++) {
+                if(self.chain[i].hash === hash) return(self.chain[i])
+            }
         });
     }
 
@@ -146,7 +184,13 @@ class Blockchain {
         let self = this;
         let stars = [];
         return new Promise((resolve, reject) => {
-            
+            let i;
+            for (i=0; i<self.chain.length; i++) {
+                if (self.chain[i].owner === address) {
+                    stars.push(JSON.parse(hex2ascii(self.chain[i].body)));
+                }
+            }
+            stars.length > 0 ? resolve(stars) : reject(new Error("No stars found for this account"));            
         });
     }
 
@@ -160,7 +204,18 @@ class Blockchain {
         let self = this;
         let errorLog = [];
         return new Promise(async (resolve, reject) => {
-            
+            for (let block of self.chain) {
+                if (block.validate()) {
+                    if (block.height > 0) {
+                        if(block.previousBlockHash !== self.chain[block.height - 1].hash) {
+                            errorLog.push(new Error("Invalid link between " + block.height + "and " + self.chain[block.height - 1].height));
+                        }
+                    }
+                } else {
+                    errorLog.push(new Error("Invalid block: " + block.height + ", " + block.hash));
+                }
+            }
+            errorLog.length > 0 ? resolve(errorLog) : resolve("No errors found")
         });
     }
 
